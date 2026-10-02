@@ -39,12 +39,16 @@ The package installs as editable, so every command below runs from the
 repository root with no further setup.
 
 ```bash
-pip install -e . --no-deps
+pip install -e ".[dev]"
 
 python3 -m pytest tests/ -q
 agentmodel pretrain configs/pretrain_nano.yaml \
   --steps 60 --seq-len 128 --out runs/demo --log-every 10
 ```
+
+The `dev` extra pulls in `pytest` and `ruff`. Do not pass `--no-deps`: it
+suppresses those installs, and the test and lint commands then fail with
+"command not found".
 
 That trains a 1.4M-parameter model for 60 steps and drops loss from 6.93 to
 4.31 in roughly 50 seconds. It writes `history.jsonl`, `eval.json`, and
