@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import torch
-import torch.nn as nn
 
 from ..data.packing import PackedBatch
 from ..model.config import Config

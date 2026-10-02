@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Iterable, Sequence
-
 
 _MAX_HASH = (1 << 64) - 1
 
@@ -67,7 +66,7 @@ class MinHashDeduplicator:
             raise ValueError("signatures must have equal length")
         if not left:
             return 1.0
-        return sum(a == b for a, b in zip(left, right)) / len(left)
+        return sum(a == b for a, b in zip(left, right, strict=True)) / len(left)
 
     def deduplicate(self, documents: Iterable[str]) -> DedupResult:
         """Remove documents whose MinHash similarity reaches `threshold`."""

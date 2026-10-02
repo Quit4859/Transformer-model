@@ -7,8 +7,9 @@ and recoverable.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Protocol
+from typing import Protocol
 
 from .context import Context
 from .parser import ToolCall, ToolCallParser
@@ -117,7 +118,7 @@ class AgentLoop:
 
             results = [self._invoke(call) for call in calls]
             context.append("assistant", text)
-            for call, result in zip(calls, results):
+            for call, result in zip(calls, results, strict=True):
                 context.append("tool", f"{call.name} -> {result['result']}")
             self.transcript.append(StepRecord(iteration, text, calls, results))
 

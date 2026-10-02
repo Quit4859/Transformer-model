@@ -14,7 +14,7 @@ from pathlib import Path
 import torch
 
 from ..config import Config, load_config
-from ..data.chat import ChatMessage, ChatTemplate, assistant_targets, messages_from_dicts
+from ..data.chat import ChatTemplate, messages_from_dicts
 from ..data.tokenizer import CodeAwareBPETokenizer
 from ..data.traces import filter_passing_traces
 from .loop import Trainer
@@ -43,7 +43,9 @@ def encode_traces(
             "input_ids": encoded.input_ids,
             "targets": [
                 token if mask else -100
-                for token, mask in zip(encoded.input_ids[1:] + [-100], encoded.loss_mask)
+                for token, mask in zip(
+                    encoded.input_ids[1:] + [-100], encoded.loss_mask, strict=True
+                )
             ],
         }
         for trace in traces

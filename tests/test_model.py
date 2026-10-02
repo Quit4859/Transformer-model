@@ -1,4 +1,3 @@
-import math
 
 import torch
 
@@ -103,7 +102,7 @@ def test_gradients_flow():
     model = Transformer(tiny_cfg())
     ids = torch.randint(0, 64, (2, 16))
     loss = torch.nn.functional.cross_entropy(
-        out_logits := model(ids).logits.reshape(-1, 64), torch.randint(0, 64, (32,))
+        model(ids).logits.reshape(-1, 64), torch.randint(0, 64, (32,))
     )
     loss.backward()
     grads = [p.grad for p in model.parameters() if p.grad is not None]

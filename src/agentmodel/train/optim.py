@@ -9,7 +9,6 @@ forming it, so the cost is a handful of small matmuls per parameter.
 from __future__ import annotations
 
 import torch
-from torch.optim import Optimizer
 
 
 @torch.no_grad()
@@ -78,7 +77,6 @@ class Muon(torch.optim.Optimizer):
                 if p.ndim == 2:
                     orig_shape = update.shape
                     m, n = orig_shape
-                    side = max(m, n)
                     transposed = n > m
                     u = update.T if transposed else update
                     u = zeropower_via_newtonschulz5(u, steps=group["ns_steps"])

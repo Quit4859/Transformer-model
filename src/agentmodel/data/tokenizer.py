@@ -10,10 +10,9 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
-
 
 _CODE_SPAN = re.compile(r"\s+|[A-Za-z_][A-Za-z_0-9]*|[0-9]+|[^A-Za-z_0-9\s]+")
 _BYTE_VOCAB_SIZE = 256
@@ -66,7 +65,7 @@ class CodeAwareBPETokenizer:
     def _reset_base_vocab(self) -> None:
         self._vocab = {}
         self._tokens = []
-        for token_id in range(len(self.special_tokens)):
+        for _ in range(len(self.special_tokens)):
             self._tokens.append(b"")
         for value in range(_BYTE_VOCAB_SIZE):
             self._vocab[bytes([value])] = len(self._tokens)
@@ -77,7 +76,7 @@ class CodeAwareBPETokenizer:
     def merges(self) -> tuple[tuple[bytes, bytes], ...]:
         return tuple(self._merges)
 
-    def train(self, texts: Iterable[str], min_frequency: int = 2) -> "CodeAwareBPETokenizer":
+    def train(self, texts: Iterable[str], min_frequency: int = 2) -> CodeAwareBPETokenizer:
         """Learn the most frequent in-span byte pairs until the vocabulary is full."""
         if min_frequency < 1:
             raise ValueError("min_frequency must be positive")
@@ -90,7 +89,7 @@ class CodeAwareBPETokenizer:
             counts: Counter[tuple[bytes, bytes]] = Counter()
             for document in spans:
                 for span in document:
-                    counts.update(zip(span, span[1:]))
+                    counts.update(zip(span, span[1:], strict=False))
             if not counts:
                 break
             pair, frequency = counts.most_common(1)[0]
@@ -165,7 +164,7 @@ class CodeAwareBPETokenizer:
         Path(path).write_text(json.dumps(payload, sort_keys=True))
 
     @classmethod
-    def load(cls, path: str | Path) -> "CodeAwareBPETokenizer":
+    def load(cls, path: str | Path) -> CodeAwareBPETokenizer:
         payload = json.loads(Path(path).read_text())
         tokenizer = cls(payload["vocab_size"], payload["special_tokens"])
         tokenizer._tokens = [bytes.fromhex(token) for token in payload["tokens"]]

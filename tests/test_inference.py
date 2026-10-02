@@ -1,6 +1,5 @@
 import torch
 
-from agentmodel.config import load_config
 from agentmodel.data.tokenizer import CodeAwareBPETokenizer
 from agentmodel.inference.sampling import Generator, SamplingConfig, filter_logits, sample_token
 from agentmodel.model.config import ModelConfig

@@ -22,7 +22,7 @@ class PackedBatch:
     attention_mask: torch.Tensor  # [B, T] bool, True on real tokens
     num_real_tokens: int
 
-    def to(self, device) -> "PackedBatch":
+    def to(self, device) -> PackedBatch:
         return PackedBatch(
             input_ids=self.input_ids.to(device),
             targets=self.targets.to(device),

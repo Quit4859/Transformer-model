@@ -7,7 +7,6 @@ from typing import Any
 
 import torch
 
-from ..config import Config
 from .loop import Trainer
 
 

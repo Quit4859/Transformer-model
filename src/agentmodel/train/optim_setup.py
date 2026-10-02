@@ -7,8 +7,7 @@ and any 1D parameter stay on AdamW.
 
 from __future__ import annotations
 
-import math
-from typing import Iterable
+from collections.abc import Iterable
 
 import torch
 import torch.nn as nn

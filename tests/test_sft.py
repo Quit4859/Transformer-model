@@ -4,7 +4,6 @@ from agentmodel.config import load_config
 from agentmodel.data.chat import ChatMessage, ChatTemplate, assistant_targets
 from agentmodel.data.tokenizer import CodeAwareBPETokenizer
 from agentmodel.data.traces import filter_passing_traces
-from agentmodel.model.transformer import Transformer
 from agentmodel.train.sft import collate, encode_traces, run_sft, sft_batches
 
 
@@ -122,5 +121,7 @@ def test_sft_only_supervises_assistant_tokens():
     assert sum(encoded.loss_mask) == len(tokenizer.encode("ok\n"))
 
     _, targets = assistant_targets(encoded)
-    expected = [t for t, m in zip(encoded.input_ids, encoded.loss_mask) if m][1:]
+    expected = [
+        t for t, m in zip(encoded.input_ids, encoded.loss_mask, strict=True) if m
+    ][1:]
     assert targets[targets != -100].tolist() == expected

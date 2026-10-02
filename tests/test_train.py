@@ -4,10 +4,10 @@ from agentmodel.config import load_config
 from agentmodel.data.packing import pack_documents
 from agentmodel.model.config import ModelConfig
 from agentmodel.model.transformer import Transformer
-from agentmodel.train.losses import count_valid, doc_boundary_mask, token_cross_entropy
 from agentmodel.train.loop import Trainer
-from agentmodel.train.pretrain import build_batch, synthetic_docs
+from agentmodel.train.losses import count_valid, doc_boundary_mask, token_cross_entropy
 from agentmodel.train.precision import EMA, resolve_dtype
+from agentmodel.train.pretrain import build_batch, synthetic_docs
 
 
 def test_pack_shapes_and_targets():
