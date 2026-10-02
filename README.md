@@ -42,4 +42,3 @@ The current implementation includes the model core, training loop, tokenizer,
 deduplication and data-quality pipeline, checkpointing, and evaluation
 utilities. Larger SFT, agent-harness, RLVR, and distributed-scaling phases
 remain sequenced in `plans/phases.md`.
-hello
