@@ -1,0 +1,42 @@
+# agent tooling / workspace state - never commit
+.kilo/
+.agent-manager.json
+
+# plans/ - local documentation for AI agents, never pushed
+plans/
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# training artifacts
+runs/
+wandb/
+mlruns/
+reports/*.jsonl
+data/processed/
+data/raw/
+*.bin
+*.idx
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.npz
+*.npy
+
+# local env / editor
+.env
+.venv
+.DS_Store
+*.swp

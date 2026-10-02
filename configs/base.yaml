@@ -1,0 +1,82 @@
+# Phase 0 base config. Every run config extends this.
+# Config inheritance is resolved by agentmodel.config.load_config.
+
+model:
+  vocab_size: 8192
+  n_layer: 12
+  d_model: 512
+  n_head: 8
+  n_kv_head: 2          # GQA: n_head must be divisible by n_kv_head
+  d_ff: 1408            # ~8/3 * d_model, rounded to multiple of 64
+  max_seq_len: 2048
+
+  # normalization / stability
+  norm_eps: 1.0e-6
+  qk_norm: true         # RMSNorm on q,k before RoPE
+  zero_centered_qk_norm: false
+
+  # position
+  rope_theta: 500000.0
+  partial_rope_dim: 64  # 0 disables partial RoPE
+  rope_scaling:
+    factor: 1.0
+    original_max_seq_len: 2048
+    type: none          # none | yarn | linear
+
+  # attention pattern
+  # "global"            -> full causal attention every layer
+  # "swa"               -> 5:1 local:global sliding-window pattern
+  # "hybrid"            -> 3:1 linear-attention:gated-attention (needs linear_attn)
+  layer_pattern: swa
+  local_layers: swa    # swa | delta | full
+  global_layers: full
+  local_window: 512
+  swa_every: 5         # one global layer every swa_every local layers
+
+  # gated attention (global full-attention layers)
+  gated_attention: true
+  attn_output_gate: true
+
+  # feed-forward
+  n_expert: 0           # 0 = dense SwiGLU
+  n_expert_used: 0
+  n_shared_expert: 1
+  moe_aux_loss_coeff: 0.001
+
+  # head
+  tie_embeddings: false
+  mtp_n_layer: 0        # multi-token prediction heads
+  logit_scale: false
+
+data:
+  sequence_length: 2048
+  eos_token_id: 2
+  bos_token_id: 1
+  pad_token_id: 0
+
+optim:
+  optimizer: muon_adamw
+  lr: 3.0e-3
+  muon_lr: 0.02
+  momentum: 0.95
+  nesterov: true
+  weight_decay: 0.1
+  adamw_betas: [0.9, 0.95]
+  grad_clip: 1.0
+  warmup_steps: 200
+  decay_steps: 20000
+  schedule: wsd         # wsd | cosine | constant
+  min_lr_ratio: 0.1
+
+precision:
+  compute_dtype: bf16
+  param_dtype: fp32
+  ema_decay: 0.0
+
+train:
+  micro_batch_size: 4
+  grad_accum_steps: 8
+  seed: 1234
+  log_interval: 10
+  checkpoint_interval: 1000
+  gradient_checkpointing: false
