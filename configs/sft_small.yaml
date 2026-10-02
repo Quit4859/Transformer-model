@@ -1,0 +1,33 @@
+extends: base.yaml
+
+model:
+  vocab_size: 8192
+  n_layer: 12
+  d_model: 768
+  n_head: 12
+  n_kv_head: 4
+  d_ff: 2048
+  max_seq_len: 8192
+  partial_rope_dim: 64
+  local_window: 1024
+  layer_pattern: swa
+  swa_every: 5
+  tie_embeddings: false
+  mtp_n_layer: 0
+
+data:
+  sequence_length: 2048
+  eos_token_id: 2
+  bos_token_id: 1
+  pad_token_id: 0
+
+optim:
+  lr: 1.0e-3
+  muon_lr: 0.02
+  warmup_steps: 100
+  decay_steps: 20000
+
+train:
+  micro_batch_size: 8
+  grad_accum_steps: 4
+  gradient_checkpointing: true

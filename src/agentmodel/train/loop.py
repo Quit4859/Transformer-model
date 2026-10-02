@@ -76,6 +76,15 @@ class Trainer:
             loss = loss + out.aux_loss
         return loss, stats
 
+    def supervised_loss(self, input_ids: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """Token CE against explicit targets, used by SFT where packing differs."""
+        with autocast_ctx(self.cfg.precision.compute_dtype):
+            out = self.model(
+                input_ids,
+                gradient_checkpointing=self.cfg.train.gradient_checkpointing,
+            )
+        return token_cross_entropy(out.logits, targets)
+
     def optimizer_step(self) -> float:
         opts = [self.adamw, self.muon]
         gnorm = clip_grad_norm(self.model, self.cfg.optim.grad_clip)
