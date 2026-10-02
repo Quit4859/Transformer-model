@@ -70,8 +70,12 @@ def pack_documents(
     attention_mask = doc_ids != -1
 
     targets = torch.full_like(ids, ignore_index)
-    valid = attention_mask.clone()
-    valid[:, 1:] = attention_mask[:, 1:] & attention_mask[:, :-1]
+    valid = torch.zeros_like(attention_mask)
+    valid[:, :-1] = (
+        attention_mask[:, :-1]
+        & attention_mask[:, 1:]
+        & (doc_ids[:, :-1] == doc_ids[:, 1:])
+    )
     targets[:, :-1] = torch.where(valid[:, :-1], ids[:, 1:], targets[:, :-1])
     targets[:, -1] = ignore_index
 

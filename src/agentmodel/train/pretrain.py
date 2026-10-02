@@ -8,14 +8,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import time
+from dataclasses import replace
 
 import torch
 
 from ..config import Config, load_config
 from ..data.packing import PackedBatch, pack_documents
 from ..model.transformer import Transformer
+from .checkpoint import save_checkpoint
+from .eval import evaluate
 from .loop import Trainer
 
 
@@ -29,14 +33,37 @@ def synthetic_docs(n_docs: int, doc_len: int, vocab: int, eos: int, seed: int) -
     return docs
 
 
-def build_batch(cfg: Config, seed: int = 0, seq_len: int | None = None) -> PackedBatch:
+def load_tokenized_documents(path: str) -> list[list[int]]:
+    """Load token-id documents from JSONL records containing ``tokens``."""
+    documents: list[list[int]] = []
+    with open(path, encoding="utf-8") as stream:
+        for line_number, line in enumerate(stream, 1):
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"invalid JSON on line {line_number} of {path}") from exc
+            tokens = record.get("tokens", record.get("input_ids")) if isinstance(record, dict) else record
+            if not isinstance(tokens, list) or not all(isinstance(token, int) for token in tokens):
+                raise ValueError(f"line {line_number} of {path} must contain an integer token list")
+            if tokens:
+                documents.append(tokens)
+    if not documents:
+        raise ValueError(f"{path} contains no tokenized documents")
+    return documents
+
+
+def build_batch(
+    cfg: Config,
+    seed: int = 0,
+    seq_len: int | None = None,
+    documents: list[list[int]] | None = None,
+) -> PackedBatch:
     seq_len = seq_len or cfg.data.sequence_length
-    docs = synthetic_docs(
-        n_docs=8,
-        doc_len=max(8, seq_len // 4),
-        vocab=cfg.model.vocab_size,
-        eos=cfg.data.eos_token_id,
-        seed=seed,
+    docs = documents or synthetic_docs(
+        n_docs=8, doc_len=max(8, seq_len // 4), vocab=cfg.model.vocab_size,
+        eos=cfg.data.eos_token_id, seed=seed
     )
     return pack_documents(
         docs,
@@ -45,12 +72,71 @@ def build_batch(cfg: Config, seed: int = 0, seq_len: int | None = None) -> Packe
     )
 
 
+def run_overfit_gate(
+    cfg: Config,
+    documents: list[list[int]],
+    *,
+    steps: int = 100,
+    heldout_fraction: float = 0.1,
+    learning_rate: float = 1.0,
+) -> dict[str, float]:
+    """Run the nano acceptance gate on a fixed shard and return measured metrics."""
+    if not documents:
+        raise ValueError("documents must not be empty")
+    if steps < 1:
+        raise ValueError("steps must be positive")
+    if not 0.0 < heldout_fraction < 1.0:
+        raise ValueError("heldout_fraction must be between 0 and 1")
+    if learning_rate <= 0:
+        raise ValueError("learning_rate must be positive")
+    split = max(1, min(len(documents) - 1, round(len(documents) * (1 - heldout_fraction))))
+    train_docs, heldout_docs = documents[:split], documents[split:]
+    gate_cfg = replace(
+        cfg,
+        precision=replace(cfg.precision, compute_dtype="fp32"),
+        optim=replace(
+            cfg.optim,
+            lr=learning_rate,
+            schedule="constant",
+            warmup_steps=1,
+        ),
+        train=replace(cfg.train, grad_accum_steps=1),
+    )
+    trainer = Trainer(gate_cfg)
+    train_batch = pack_documents(
+        train_docs,
+        gate_cfg.data.sequence_length,
+        pad_token_id=gate_cfg.data.pad_token_id,
+    )
+    heldout_batch = pack_documents(
+        heldout_docs,
+        gate_cfg.data.sequence_length,
+        pad_token_id=gate_cfg.data.pad_token_id,
+    )
+    first_loss = float(trainer.forward_loss(train_batch)[0].detach())
+    finite_gradients = True
+    for _ in range(steps):
+        stats = trainer.micro_step(train_batch)
+        trainer.advance()
+        finite_gradients &= stats.grad_norm is None or math.isfinite(stats.grad_norm)
+    with torch.no_grad():
+        heldout_loss = float(trainer.forward_loss(heldout_batch)[0].detach())
+    if not finite_gradients or not torch.isfinite(torch.tensor(heldout_loss)):
+        raise RuntimeError("nano overfit gate produced non-finite gradients or loss")
+    return {
+        "first_loss": first_loss,
+        "heldout_loss": heldout_loss,
+        "finite_gradients": float(finite_gradients),
+    }
+
+
 def run(
     cfg: Config,
     steps: int,
     out_dir: str,
     log_every: int = 10,
     seq_len: int | None = None,
+    documents: list[list[int]] | None = None,
 ) -> list[dict]:
     """Train on a synthetic packed batch and log the loss curve.
 
@@ -62,7 +148,7 @@ def run(
     os.makedirs(out_dir, exist_ok=True)
     model = Transformer(cfg.model)
     trainer = Trainer(cfg, model=model)
-    batch = build_batch(cfg, seq_len=seq_len)
+    batch = build_batch(cfg, seq_len=seq_len, documents=documents)
     print(
         f"params={trainer.model.num_params():,} config_hash={cfg.config_hash()} "
         f"seq_len={seq_len} layers={cfg.model.layer_types()}"
@@ -82,6 +168,10 @@ def run(
     with open(os.path.join(out_dir, "history.jsonl"), "w") as f:
         for rec in history:
             f.write(json.dumps(rec) + "\n")
+    save_checkpoint(os.path.join(out_dir, "checkpoint.pt"), trainer)
+    eval_metrics = evaluate(trainer, [batch])
+    with open(os.path.join(out_dir, "eval.json"), "w") as f:
+        json.dump(eval_metrics, f, indent=2, sort_keys=True)
     return history
 
 
@@ -92,10 +182,12 @@ def main() -> None:
     p.add_argument("--out", default="runs/pretrain")
     p.add_argument("--log-every", type=int, default=10)
     p.add_argument("--seq-len", type=int, default=None)
+    p.add_argument("--data", default=None, help="tokenized JSONL with tokens or input_ids fields")
     args = p.parse_args()
     cfg = load_config(args.config)
     t0 = time.time()
-    run(cfg, args.steps, args.out, args.log_every, args.seq_len)
+    documents = load_tokenized_documents(args.data) if args.data else None
+    run(cfg, args.steps, args.out, args.log_every, args.seq_len, documents=documents)
     print(f"done in {time.time() - t0:.1f}s")
 
 
