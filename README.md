@@ -1,5 +1,7 @@
 # AgentModel
 
+<!-- Diagrams and prose below are kept in sync by the project setup work. -->
+
 [![tests](https://github.com/Quit4859/Transformer-modle/actions/workflows/tests.yml/badge.svg)](https://github.com/Quit4859/Transformer-modle/actions/workflows/tests.yml)
 [![python](https://img.shields.io/badge/python-3.10%2B-3776ab?logo=python&logoColor=white)](https://www.python.org)
 [![pytorch](https://img.shields.io/badge/pytorch-2.x-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org)
