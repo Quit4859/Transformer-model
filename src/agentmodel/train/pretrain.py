@@ -18,7 +18,7 @@ import torch
 from ..config import Config, load_config
 from ..data.packing import PackedBatch, pack_documents
 from ..model.transformer import Transformer
-from .checkpoint import save_checkpoint
+from .checkpoint import load_checkpoint, save_checkpoint
 from .eval import evaluate
 from .loop import Trainer
 
@@ -137,6 +137,7 @@ def run(
     log_every: int = 10,
     seq_len: int | None = None,
     documents: list[list[int]] | None = None,
+    resume: str | None = None,
 ) -> list[dict]:
     """Train on a synthetic packed batch and log the loss curve.
 
@@ -148,6 +149,12 @@ def run(
     os.makedirs(out_dir, exist_ok=True)
     model = Transformer(cfg.model)
     trainer = Trainer(cfg, model=model)
+    if resume:
+        metadata = load_checkpoint(resume, trainer)
+        print(
+            f"resumed checkpoint={resume} step={metadata['step_index']} "
+            f"tokens={metadata['tokens_seen']}"
+        )
     batch = build_batch(cfg, seq_len=seq_len, documents=documents)
     print(
         f"params={trainer.model.num_params():,} config_hash={cfg.config_hash()} "
@@ -165,7 +172,9 @@ def run(
                 f"step {rec['step']:5d} loss {rec['loss']:.4f} "
                 f"lr {rec['lr_scale']:.3f} gnorm {gnorm}"
             )
-    with open(os.path.join(out_dir, "history.jsonl"), "w") as f:
+    history_path = os.path.join(out_dir, "history.jsonl")
+    mode = "a" if resume and os.path.exists(history_path) else "w"
+    with open(history_path, mode) as f:
         for rec in history:
             f.write(json.dumps(rec) + "\n")
     save_checkpoint(os.path.join(out_dir, "checkpoint.pt"), trainer)
@@ -183,11 +192,20 @@ def main() -> None:
     p.add_argument("--log-every", type=int, default=10)
     p.add_argument("--seq-len", type=int, default=None)
     p.add_argument("--data", default=None, help="tokenized JSONL with tokens or input_ids fields")
+    p.add_argument("--resume", default=None, help="checkpoint path to resume from")
     args = p.parse_args()
     cfg = load_config(args.config)
     t0 = time.time()
     documents = load_tokenized_documents(args.data) if args.data else None
-    run(cfg, args.steps, args.out, args.log_every, args.seq_len, documents=documents)
+    run(
+        cfg,
+        args.steps,
+        args.out,
+        args.log_every,
+        args.seq_len,
+        documents=documents,
+        resume=args.resume,
+    )
     print(f"done in {time.time() - t0:.1f}s")
 
 

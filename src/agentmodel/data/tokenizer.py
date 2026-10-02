@@ -125,14 +125,35 @@ class CodeAwareBPETokenizer:
 
     def decode(self, ids: Iterable[int], skip_special_tokens: bool = True) -> str:
         """Decode ids back to the original Unicode text."""
+        return self.decode_bytes(ids, skip_special_tokens).decode("utf-8")
+
+    def decode_bytes(self, ids: Iterable[int], skip_special_tokens: bool = True) -> bytes:
+        """Decode ids to raw bytes without attempting UTF-8 assembly."""
         special_ids = set(self.special_tokens.values())
-        raw = b"".join(
+        return b"".join(
             self._tokens[token_id]
             for token_id in ids
             if 0 <= token_id < len(self._tokens)
             and (not skip_special_tokens or token_id not in special_ids)
         )
-        return raw.decode("utf-8", errors="strict")
+
+    def decode_stream(
+        self, ids: Iterable[int], skip_special_tokens: bool = True
+    ) -> tuple[str, bytes]:
+        """Decode a partial token stream, holding back an incomplete final rune.
+
+        Byte-level BPE can emit half a multi-byte character mid-stream, so
+        strict decoding would raise on every generation. Bytes that cannot yet
+        form a valid character are returned as a carry buffer to prepend to the
+        next chunk instead of being dropped or replaced.
+        """
+        raw = self.decode_bytes(ids, skip_special_tokens)
+        for cut in range(0, min(4, len(raw)) + 1):
+            try:
+                return raw[: len(raw) - cut].decode("utf-8"), raw[len(raw) - cut :]
+            except UnicodeDecodeError:
+                continue
+        return "", raw
 
     def save(self, path: str | Path) -> None:
         payload = {

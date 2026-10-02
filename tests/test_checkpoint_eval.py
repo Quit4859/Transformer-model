@@ -8,6 +8,7 @@ from agentmodel.model.config import ModelConfig
 from agentmodel.train.checkpoint import load_checkpoint, save_checkpoint
 from agentmodel.train.eval import evaluate
 from agentmodel.train.loop import Trainer
+from agentmodel.train.pretrain import run
 
 
 def _config():
@@ -45,3 +46,13 @@ def test_checkpoint_round_trip_and_evaluation(tmp_path):
     metrics = evaluate(restored, [batch])
     assert metrics["loss"] > 0
     assert torch.isfinite(torch.tensor(metrics["perplexity"]))
+
+
+def test_pretraining_can_resume_from_checkpoint(tmp_path):
+    cfg = _config()
+    output = tmp_path / "run"
+    run(cfg, steps=1, out_dir=str(output), seq_len=8, log_every=1)
+    checkpoint = output / "checkpoint.pt"
+    run(cfg, steps=1, out_dir=str(output), seq_len=8, log_every=1, resume=str(checkpoint))
+    lines = (output / "history.jsonl").read_text().splitlines()
+    assert len(lines) == 2

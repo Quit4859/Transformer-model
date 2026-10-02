@@ -32,6 +32,7 @@ def _pretrain(args: argparse.Namespace) -> int:
         log_every=args.log_every,
         seq_len=args.seq_len,
         documents=documents,
+        resume=args.resume,
     )
     return 0
 
@@ -78,6 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     pretrain.add_argument("--log-every", type=int, default=10)
     pretrain.add_argument("--seq-len", type=int)
     pretrain.add_argument("--data")
+    pretrain.add_argument("--resume")
     pretrain.set_defaults(handler=_pretrain)
 
     sft = subparsers.add_parser("sft-encode", help="encode passing traces for SFT")

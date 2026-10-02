@@ -62,18 +62,24 @@ class Generator:
         cfg = SamplingConfig(**{**self.cfg.__dict__, **overrides})
         if self.tokenizer is None:
             raise ValueError("a tokenizer is required to decode generated ids")
-        ids = self.tokenizer.encode(prompt)
+        bos = self.tokenizer.special_tokens.get("<bos>", 0)
+        ids = self.tokenizer.encode(prompt) or [bos]
         cache = self.reset()
-        out = self.model(torch.tensor([ids]), cache=cache, use_cache=True)
+        out = self.model(
+            torch.tensor([ids], dtype=torch.long), cache=cache, use_cache=True
+        )
         generated: list[int] = []
+        pieces: list[str] = []
+        carry = b""
         for _ in range(cfg.max_new_tokens):
             token = sample_token(out.logits[0, -1], cfg)
             generated.append(token)
+            text, carry = self.tokenizer.decode_stream(generated)
+            pieces.append(text)
             if any(s and _ends_with(self.tokenizer, generated, s) for s in cfg.stop):
                 break
-            step = self.model(torch.tensor([[token]]), cache=cache, use_cache=True)
-            out = step
-        return self.tokenizer.decode(generated)
+            out = self.model(torch.tensor([[token]]), cache=cache, use_cache=True)
+        return "".join(pieces)
 
 
 def _ends_with(tokenizer, ids: list[int], stop: str) -> bool:
