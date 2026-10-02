@@ -1,5 +1,15 @@
 # AgentModel
 
+[![tests](https://github.com/Quit4859/Transformer-modle/actions/workflows/tests.yml/badge.svg)](https://github.com/Quit4859/Transformer-modle/actions/workflows/tests.yml)
+[![python](https://img.shields.io/badge/python-3.10%2B-3776ab?logo=python&logoColor=white)](https://www.python.org)
+[![pytorch](https://img.shields.io/badge/pytorch-2.x-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org)
+[![ruff](https://img.shields.io/badge/lint-ruff-261230?logo=ruff&logoColor=white)](https://github.com/astral-sh/ruff)
+[![code style](https://img.shields.io/badge/code%20style-ruff-4b8b29?logo=ruff&logoColor=white)](https://github.com/astral-sh/ruff)
+[![cpu only](https://img.shields.io/badge/runs%20on-CPU%20only-6f42c1?logo=linux&logoColor=white)](https://www.kernel.org)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?logo=github&logoColor=white)](https://makeapullrequest.com)
+[![contributors](https://img.shields.io/github/contributors/Quit4859/Transformer-modle?logo=github&logoColor=white)](https://github.com/Quit4859/Transformer-modle/graphs/contributors)
+[![last commit](https://img.shields.io/github/last-commit/Quit4859/Transformer-modle?logo=git&logoColor=white)](https://github.com/Quit4859/Transformer-modle/commits/main)
+
 A decoder-only Transformer, trained from scratch in PyTorch, with the training
 infrastructure needed to turn it into a tool-using coding agent.
 
