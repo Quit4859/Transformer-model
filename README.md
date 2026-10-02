@@ -8,6 +8,12 @@ agent that runs code: tokenizer, data pipeline, optimizer, trainer, inference
 loop, SFT on tool traces, and a reinforcement-learning stage that rewards
 verified outcomes rather than human labels.
 
+![Six-layer decoder-only transformer. Five sliding-window attention layers
+followed by one global attention layer. Each layer contains RMSNorm,
+grouped-query attention with eight query heads sharing two key-value heads,
+QK-Norm and partial RoPE, and a SwiGLU feed-forward block, with residual
+connections bypassing each sub-block.](src/img/architecture.png)
+
 ## Status
 
 The core is complete and runs end to end on CPU. Pretraining, validation,
@@ -79,6 +85,11 @@ a naive "better than baseline" check while the model had learned nothing.
 Raise or lower it with `--min-improvement`, and change the split with
 `--heldout-fraction`.
 
+![Training curve showing held-out validation loss falling from 6.93 to about
+1.83 over 150 steps against a flat random-initialization baseline at 6.93. A
+vertical marker near step 2 notes that the acceptance gate requires 5%
+improvement, well past the point where the two curves first separate.](src/img/training-curve.png)
+
 Without `--data`, training falls back to synthetic documents and there is no
 heldout set, so the gate does not run.
 
@@ -128,6 +139,15 @@ The feed-forward block is SwiGLU. Setting `n_expert` switches it to a
 DeepSeekMoE router with shared experts and an auxiliary load-balancing loss.
 
 ## Training
+
+![End-to-end training pipeline. Raw JSONL documents pass through
+deduplication and quality filters, then a byte-level BPE tokenizer learned
+from scratch, then sequence packing with cross-document attention masked.
+The packed batches branch to two optimizers, Muon with Newton-Schulz
+orthogonalization for the 2D hidden weights and AdamW for embeddings, norms,
+biases and scalars, which converge on the trainer. The run ends in held-out
+evaluation against a random-initialization baseline, with a checkpoint and
+resume loop.](src/img/training-pipeline.png)
 
 Muon, momentum orthogonalized by a Newton-Schulz iteration, updates the 2D
 hidden weights. AdamW keeps embeddings, norms, biases, and scalars. The split
