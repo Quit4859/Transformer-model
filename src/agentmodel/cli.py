@@ -33,6 +33,8 @@ def _pretrain(args: argparse.Namespace) -> int:
         seq_len=args.seq_len,
         documents=documents,
         resume=args.resume,
+        heldout_fraction=args.heldout_fraction,
+        min_improvement=args.min_improvement,
     )
     return 0
 
@@ -80,6 +82,8 @@ def build_parser() -> argparse.ArgumentParser:
     pretrain.add_argument("--seq-len", type=int)
     pretrain.add_argument("--data")
     pretrain.add_argument("--resume")
+    pretrain.add_argument("--heldout-fraction", type=float, default=0.1)
+    pretrain.add_argument("--min-improvement", type=float, default=0.05)
     pretrain.set_defaults(handler=_pretrain)
 
     sft = subparsers.add_parser("sft-encode", help="encode passing traces for SFT")

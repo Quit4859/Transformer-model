@@ -130,6 +130,28 @@ def run_overfit_gate(
     }
 
 
+def split_documents(
+    documents: list[list[int]], heldout_fraction: float = 0.1, seed: int = 0
+) -> tuple[list[list[int]], list[list[int]]]:
+    """Partition documents into train and heldout sets without overlap.
+
+    The heldout set must be disjoint from training data for a validation loss to
+    mean anything, so it is drawn as whole documents rather than token slices.
+    """
+    if not documents:
+        raise ValueError("documents must not be empty")
+    if not 0.0 < heldout_fraction < 1.0:
+        raise ValueError("heldout_fraction must be between 0 and 1")
+    order = torch.randperm(len(documents), generator=torch.Generator().manual_seed(seed))
+    heldout_count = min(len(documents) - 1, max(1, round(len(documents) * heldout_fraction)))
+    heldout_idx = set(order[:heldout_count].tolist())
+    train = [doc for i, doc in enumerate(documents) if i not in heldout_idx]
+    heldout = [doc for i, doc in enumerate(documents) if i in heldout_idx]
+    if not train or not heldout:
+        raise ValueError("split produced an empty train or heldout set")
+    return train, heldout
+
+
 def run(
     cfg: Config,
     steps: int,
@@ -138,6 +160,8 @@ def run(
     seq_len: int | None = None,
     documents: list[list[int]] | None = None,
     resume: str | None = None,
+    heldout_fraction: float = 0.1,
+    min_improvement: float = 0.05,
 ) -> list[dict]:
     """Train on a synthetic packed batch and log the loss curve.
 
@@ -160,6 +184,19 @@ def run(
         f"params={trainer.model.num_params():,} config_hash={cfg.config_hash()} "
         f"seq_len={seq_len} layers={cfg.model.layer_types()}"
     )
+    # Validation documents are disjoint from the training batch, so the reported
+    # loss reflects generalization rather than memorization of the trained tokens.
+    heldout_batch = None
+    if documents:
+        _, heldout_docs = split_documents(documents, heldout_fraction)
+        heldout_batch = build_batch(
+            cfg, seed=1234, seq_len=seq_len, documents=heldout_docs
+        )
+        baseline = evaluate(trainer, [heldout_batch])
+        print(
+            f"heldout baseline loss {baseline['loss']:.4f} "
+            f"ppl {baseline['perplexity']:.2f} (random init)"
+        )
     history = []
     for i in range(steps):
         stats = trainer.micro_step(batch)
@@ -178,7 +215,23 @@ def run(
         for rec in history:
             f.write(json.dumps(rec) + "\n")
     save_checkpoint(os.path.join(out_dir, "checkpoint.pt"), trainer)
-    eval_metrics = evaluate(trainer, [batch])
+    eval_metrics = evaluate(trainer, [heldout_batch] if heldout_batch else [batch])
+    if heldout_batch is not None:
+        # The acceptance gate: a model that cannot beat its own random-init loss
+        # on unseen documents has not learned anything transferable. A relative
+        # margin is required because a handful of steps lowers loss by less than
+        # run-to-run noise, which would make the gate pass without learning.
+        improvement = (baseline["loss"] - eval_metrics["loss"]) / baseline["loss"]
+        eval_metrics["baseline_loss"] = baseline["loss"]
+        eval_metrics["relative_improvement"] = improvement
+        eval_metrics["beats_random_init"] = float(improvement >= min_improvement)
+        print(
+            f"heldout loss {eval_metrics['loss']:.4f} "
+            f"ppl {eval_metrics['perplexity']:.2f} "
+            f"baseline {baseline['loss']:.4f} "
+            f"improvement {improvement:+.2%} "
+            f"gate={'PASS' if eval_metrics['beats_random_init'] else 'FAIL'}"
+        )
     with open(os.path.join(out_dir, "eval.json"), "w") as f:
         json.dump(eval_metrics, f, indent=2, sort_keys=True)
     return history
@@ -193,6 +246,18 @@ def main() -> None:
     p.add_argument("--seq-len", type=int, default=None)
     p.add_argument("--data", default=None, help="tokenized JSONL with tokens or input_ids fields")
     p.add_argument("--resume", default=None, help="checkpoint path to resume from")
+    p.add_argument(
+        "--heldout-fraction",
+        type=float,
+        default=0.1,
+        help="fraction of documents reserved for validation loss",
+    )
+    p.add_argument(
+        "--min-improvement",
+        type=float,
+        default=0.05,
+        help="relative heldout loss reduction required to pass the gate",
+    )
     args = p.parse_args()
     cfg = load_config(args.config)
     t0 = time.time()
@@ -205,6 +270,8 @@ def main() -> None:
         args.seq_len,
         documents=documents,
         resume=args.resume,
+        heldout_fraction=args.heldout_fraction,
+        min_improvement=args.min_improvement,
     )
     print(f"done in {time.time() - t0:.1f}s")
 
